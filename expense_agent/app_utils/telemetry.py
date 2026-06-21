@@ -16,8 +16,13 @@ import logging
 import os
 
 
-def setup_telemetry() -> str | None:
+def setup_telemetry(otel_to_cloud: bool = True) -> str | None:
     """Configure OpenTelemetry and GenAI telemetry with GCS upload."""
+    if not otel_to_cloud:
+        os.environ["GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY"] = "false"
+        logging.info("Telemetry disabled (otel_to_cloud=False)")
+        return None
+
     os.environ.setdefault("GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY", "true")
 
     bucket = os.environ.get("LOGS_BUCKET_NAME")
