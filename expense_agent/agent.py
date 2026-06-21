@@ -87,6 +87,21 @@ class WorkflowOutput(BaseModel):
 
 def intake_node(node_input) -> Event:
     """Receives and parses the raw Pub/Sub or direct JSON message payload."""
+    # Handle Content objects from ADK playground
+    if hasattr(node_input, "parts") and node_input.parts:
+        text = ""
+        for part in node_input.parts:
+            if hasattr(part, "text") and part.text:
+                text = part.text
+                break
+        if text:
+            try:
+                node_input = json.loads(text)
+            except Exception:
+                node_input = {"description": text}
+        else:
+            node_input = {}
+
     # Robust conversion/parsing if node_input is a string
     if isinstance(node_input, str):
         try:
@@ -304,7 +319,7 @@ root_agent = Workflow(
         (risk_assessment_node, human_review_node),
         (human_review_node, finalize_node),
     ],
-    input_schema=dict,
+
     state_schema=WorkflowState,
     output_schema=WorkflowOutput,
 )
