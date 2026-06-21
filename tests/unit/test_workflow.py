@@ -116,7 +116,7 @@ async def test_compliance_and_human_approval():
             user_id="test_user",
             session_id=session.id,
             new_message=None,
-            resume_inputs={"manager_decision": "APPROVE"}
+            resume_inputs={"manager_decision": "APPROVE"}  # type: ignore
         ):
             events2.append(event)
 
