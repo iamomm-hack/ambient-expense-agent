@@ -89,6 +89,14 @@ def intake_node(node_input) -> Event:
     """Receives and parses the raw Pub/Sub or direct JSON message payload."""
     # Handle Content objects from ADK playground
     if hasattr(node_input, "parts") and node_input.parts:
+        # Detect resume messages (FunctionResponse parts) and skip re-processing.
+        # When the workflow resumes after human_review, ADK re-enters from START.
+        # The resume message contains a FunctionResponse, not expense JSON.
+        # Without this guard, we'd overwrite all original expense state with empty values.
+        for part in node_input.parts:
+            if hasattr(part, "function_response") and part.function_response:
+                return Event(output="resume_passthrough")
+
         text = ""
         for part in node_input.parts:
             if hasattr(part, "text") and part.text:

@@ -34,7 +34,7 @@
           "response": {
             "parts": [
               {
-                "text": "{\"amount\": 0.0, \"submitter\": \"\", \"category\": \"\", \"description\": \"\", \"date\": \"\", \"status\": \"AUTO_APPROVED\", \"risk_alert\": \"The expense amount of 500.0 USD for lodging is potentially high depending on the location and duration, and the description 'Hotel stay for conference' is considered vague as it lacks specific details such as the conference name, location, or number of nights, which may violate standard expense reporting transparency policies.\", \"manager_decision\": null, \"is_security_flagged\": false, \"redacted_categories\": []}"
+                "text": "\"The expense amount of 500.0 USD for lodging is potentially high depending on the location and duration, and the description 'Hotel stay for conference' is considered vague as it lacks specific details such as the conference name, location, or number of nights, which may violate standard expense reporting transparency policies.\""
               }
             ]
           }
@@ -76,7 +76,7 @@
           "response": {
             "parts": [
               {
-                "text": "{\"amount\": 0.0, \"submitter\": \"\", \"category\": \"\", \"description\": \"\", \"date\": \"\", \"status\": \"AUTO_APPROVED\", \"risk_alert\": \"High risk detected: The expense description contains a prompt injection attempt aimed at bypassing security controls and manipulating system logic. The transaction should be flagged for immediate manual review and the user account should be audited for unauthorized activity.\", \"manager_decision\": null, \"is_security_flagged\": false, \"redacted_categories\": []}"
+                "text": "\"High risk detected: The expense description contains a prompt injection attempt aimed at bypassing security controls and manipulating system logic. The transaction should be flagged for immediate manual review and the user account should be audited for unauthorized activity.\""
               }
             ]
           }
@@ -97,7 +97,7 @@
           "response": {
             "parts": [
               {
-                "text": "{\"amount\": 0.0, \"submitter\": \"\", \"category\": \"\", \"description\": \"\", \"date\": \"\", \"status\": \"AUTO_APPROVED\", \"risk_alert\": \"High compliance risk detected: The expense description contains sensitive Personally Identifiable Information (PII), specifically an employee ID and passport number, which violates data privacy policies. Additionally, the amount of 1500.0 USD for a single flight requires verification against standard travel policy limits.\", \"manager_decision\": null, \"is_security_flagged\": false, \"redacted_categories\": []}"
+                "text": "\"High compliance risk detected: The expense description contains sensitive Personally Identifiable Information (PII), specifically an employee ID and passport number, which violates data privacy policies. Additionally, the amount of 1500.0 USD for a single flight requires verification against standard travel policy limits.\""
               }
             ]
           }

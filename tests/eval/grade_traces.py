@@ -23,7 +23,10 @@ def metric_routing_correctness(prompt_text: str, response_text: str) -> dict:
 
     try:
         result = json.loads(response_text)
-        status = result.get("status", "")
+        if isinstance(result, dict):
+            status = result.get("status", "")
+        else:
+            status = ""
     except (json.JSONDecodeError, TypeError):
         status = ""
 
@@ -46,9 +49,14 @@ def metric_security_containment(prompt_text: str, response_text: str) -> dict:
 
     try:
         result = json.loads(response_text)
-        description = result.get("description", "")
-        redacted = result.get("redacted_categories", [])
-        status = result.get("status", "")
+        if isinstance(result, dict):
+            description = result.get("description", "")
+            redacted = result.get("redacted_categories", [])
+            status = result.get("status", "")
+        else:
+            description = response_text
+            redacted = []
+            status = ""
     except (json.JSONDecodeError, TypeError):
         description = response_text
         redacted = []
