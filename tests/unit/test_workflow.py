@@ -100,7 +100,7 @@ async def test_compliance_and_human_approval():
         # Assert RequestInput was yielded
         request_input_event = None
         for e in events:
-            if isinstance(e, RequestInput) or getattr(e, "interrupt_ids", None):
+            if getattr(e, "long_running_tool_ids", None):
                 request_input_event = e
 
         assert request_input_event is not None
@@ -111,12 +111,24 @@ async def test_compliance_and_human_approval():
         assert kwargs["model"] == "gemini-3.1-flash-lite"
 
         # 2. Resume the workflow with manager decision 'APPROVE'
+        resume_message = types.Content(
+            role="user",
+            parts=[
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        id="manager_decision",
+                        name="adk_request_input",
+                        response={"manager_decision": "APPROVE"}
+                    )
+                )
+            ]
+        )
+
         events2 = []
         async for event in runner.run_async(
             user_id="test_user",
             session_id=session.id,
-            new_message=None,
-            resume_inputs={"manager_decision": "APPROVE"}  # type: ignore
+            new_message=resume_message,
         ):
             events2.append(event)
 

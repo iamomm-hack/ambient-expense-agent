@@ -16,6 +16,7 @@
 import os
 import json
 import base64
+import re
 from typing import Literal, Optional
 
 from dotenv import load_dotenv
@@ -65,6 +66,8 @@ class WorkflowState(BaseModel):
     status: Optional[str] = None
     risk_alert: Optional[str] = None
     manager_decision: Optional[str] = None
+    is_security_flagged: Optional[bool] = None
+    redacted_categories: Optional[list[str]] = None
 
 
 class WorkflowOutput(BaseModel):
@@ -76,6 +79,8 @@ class WorkflowOutput(BaseModel):
     status: str
     risk_alert: Optional[str] = None
     manager_decision: Optional[str] = None
+    is_security_flagged: Optional[bool] = None
+    redacted_categories: Optional[list[str]] = None
 
 
 # --- Workflow Nodes ---
@@ -132,6 +137,50 @@ def intake_node(node_input) -> Event:
             "category": category,
             "description": description,
             "date": date,
+        }
+    )
+
+
+def security_checkpoint_node(ctx: Context) -> Event:
+    """Deterministically scrubs PII and checks for prompt injection."""
+    description = ctx.state.get("description", "")
+    redacted_categories = []
+    
+    # 1. Check for prompt injection
+    injection_keywords = ["ignore previous", "auto-approve", "bypass", "system prompt", "forget", "you must approve", "override rules", "disregard"]
+    lower_desc = description.lower()
+    is_injection = any(kw in lower_desc for kw in injection_keywords)
+    
+    if is_injection:
+        return Event(
+            output="flagged",
+            route="flagged",
+            state={
+                "is_security_flagged": True,
+                "status": "SECURITY_FLAGGED",
+                "risk_alert": "Prompt injection detected.",
+            }
+        )
+    
+    # 2. Scrub PII deterministically
+    ssn_pattern = r"\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b"
+    cc_pattern = r"\b(?:\d[-.\s]*?){13,16}\b"
+    
+    if re.search(ssn_pattern, description):
+        description = re.sub(ssn_pattern, "[REDACTED_SSN]", description)
+        redacted_categories.append("SSN")
+        
+    if re.search(cc_pattern, description):
+        description = re.sub(cc_pattern, "[REDACTED_CC]", description)
+        redacted_categories.append("Credit Card")
+        
+    return Event(
+        output="clean",
+        route="clean",
+        state={
+            "description": description,
+            "redacted_categories": redacted_categories,
+            "is_security_flagged": False,
         }
     )
 
@@ -206,6 +255,9 @@ async def human_review_node(ctx: Context):
         return
 
     decision = ctx.resume_inputs["manager_decision"]
+    # ADK 2.2.0: resume_inputs values are FunctionResponse.response dicts
+    if isinstance(decision, dict):
+        decision = decision.get("manager_decision", next(iter(decision.values()), ""))
     decision_str = str(decision).upper().strip()
     if "APPROVE" in decision_str:
         status = "APPROVED"
@@ -232,6 +284,8 @@ def finalize_node(ctx: Context) -> Event:
         "status": ctx.state.get("status"),
         "risk_alert": ctx.state.get("risk_alert"),
         "manager_decision": ctx.state.get("manager_decision"),
+        "is_security_flagged": ctx.state.get("is_security_flagged"),
+        "redacted_categories": ctx.state.get("redacted_categories"),
     }
     return Event(
         output=output_data
@@ -244,9 +298,9 @@ root_agent = Workflow(
     name="root_agent",
     edges=[
         ('START', intake_node),
-        (intake_node, routing_node),
-        (routing_node, finalize_node, "auto_approve"),
-        (routing_node, risk_assessment_node, "risk_assessment"),
+        (intake_node, security_checkpoint_node),
+        (security_checkpoint_node, {"clean": routing_node, "flagged": human_review_node}),
+        (routing_node, {"auto_approve": finalize_node, "risk_assessment": risk_assessment_node}),
         (risk_assessment_node, human_review_node),
         (human_review_node, finalize_node),
     ],
