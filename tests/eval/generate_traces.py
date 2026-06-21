@@ -11,7 +11,12 @@ import os
 import uuid
 
 from google.adk.runners import InMemoryRunner
-from google.genai import types
+from google.genai.types import Content, Part
+from vertexai._genai.types.common import (
+    EvaluationDataset,
+    EvalCase,
+    ResponseCandidate,
+)
 
 from expense_agent.agent import app as adk_app
 
@@ -30,7 +35,7 @@ async def generate_traces():
 
     for item in dataset:
         scenario = item.get("scenario_name", "unknown")
-        prompt = item.get("prompt", "")
+        prompt_text = item.get("prompt", "")
         print(f"Running scenario: {scenario}")
 
         runner = InMemoryRunner(app=adk_app)
@@ -40,13 +45,12 @@ async def generate_traces():
             app_name=app_name, user_id="eval_runner", session_id=session_id
         )
 
-        new_message = types.Content(
+        new_message = Content(
             role="user",
-            parts=[types.Part.from_text(text=prompt)],
+            parts=[Part(text=prompt_text)],
         )
 
         all_events = []
-        interrupt_handled = False
 
         # --- Initial run ---
         async for event in runner.run_async(
@@ -62,14 +66,13 @@ async def generate_traces():
             None,
         )
         if interrupt_event:
-            interrupt_handled = True
             decision = "REJECT" if "injection" in scenario else "APPROVE"
             print(f"  -> Interrupted for manual review. Auto-{decision.lower()}ing...")
 
-            resume_message = types.Content(
+            resume_message = Content(
                 role="user",
                 parts=[
-                    types.Part.from_function_response(
+                    Part.from_function_response(
                         name="adk_request_input",
                         response={"manager_decision": decision},
                     )
@@ -89,46 +92,25 @@ async def generate_traces():
                 final_output = e.output
                 break
 
-        response_text = json.dumps(final_output) if final_output else ""
+        response_text = json.dumps(final_output, default=str) if final_output else "{}"
 
-        # --- Build agent_data with structured turn info ---
-        turns = []
-        for e in all_events:
-            turn_entry = {}
-            if getattr(e, "node_info", None):
-                turn_entry["node"] = e.node_info.path
-            if getattr(e, "output", None) is not None:
-                turn_entry["output"] = str(e.output)
-            if getattr(e, "long_running_tool_ids", None):
-                turn_entry["interrupt"] = list(e.long_running_tool_ids)
-            if getattr(e, "actions", None) and getattr(e.actions, "route", None):
-                turn_entry["route"] = e.actions.route
-            if getattr(e, "actions", None) and getattr(e.actions, "state_delta", None):
-                turn_entry["state_delta"] = e.actions.state_delta
-            if turn_entry:
-                turns.append(turn_entry)
+        # --- Build EvalCase using proper Vertex AI types ---
+        prompt_content = Content(parts=[Part(text=prompt_text)])
+        response_content = Content(parts=[Part(text=response_text)])
 
-        agent_data = {
-            "turns": turns,
-            "interrupt_handled": interrupt_handled,
-            "final_output": final_output,
-        }
-
-        # --- Build EvalCase in the EvaluationDataset schema ---
         eval_cases.append(
-            {
-                "eval_case_id": scenario,
-                "prompt": prompt,
-                "responses": [response_text],
-                "agent_data": agent_data,
-            }
+            EvalCase(
+                eval_case_id=scenario,
+                prompt=prompt_content,
+                responses=[ResponseCandidate(response=response_content)],
+            )
         )
 
-    # Wrap in EvaluationDataset envelope
-    output = {"eval_cases": eval_cases}
+    # Wrap in EvaluationDataset and serialize
+    evaluation_dataset = EvaluationDataset(eval_cases=eval_cases)
 
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2, default=str)
+        f.write(evaluation_dataset.model_dump_json(indent=2, exclude_none=True))
 
     print(f"\nGenerated {len(eval_cases)} traces -> {OUTPUT_PATH}")
 
